@@ -47,6 +47,8 @@ If both modes would apply (e.g., `/claude-md improve` in a folder with no CLAUDE
 
 Measure one CLAUDE.md against Anthropic's official best practices + community-validated guidance, then propose concrete rewrite diffs. Apply only after user approval.
 
+**One empirical caveat (Claude Code specifically).** When the target file is short (<100 lines) and already aligned with Karpathy-style rules, *adding* more rules can regress Claude Code quality. Augment Code (April 2026) tested Karpathy rules across Auggie, Claude Code, and Codex on 40 OpenClaw PRs: speed and cost improved on all three (−3% to −8% on duration and tool calls), but Claude Code quality dropped 0.07 overall (correctness −0.07, completeness −0.06, code reuse −0.05). Auggie and Codex were stable. Their hypothesis: Claude Code's system prompt already encodes similar constraints; further layering reduces exploration. When the rubric scores 9/10 or 10/10 on a Claude Code target, the default recommendation is trim, not add.
+
 ### The Rubric
 
 Ten checks, each backed by a primary source. Every recommendation cites the rule.
@@ -60,9 +62,9 @@ Ten checks, each backed by a primary source. Every recommendation cites the rule
 | R5 | **Markdown structure: headers + bullets.** Not dense paragraphs. | Anthropic — Memory docs |
 | R6 | **5 canonical sections present** (Commands, Architecture, Rules, Workflow, Out-of-scope). | Community consensus + Anthropic `/init` template |
 | R7 | **Hard Rules section ≤15 items.** Beyond that, rules drop. | Community (zodchiii thread, 1.3M views) |
-| R8 | **3-tier hierarchy used correctly.** Global rules in `~/.claude/CLAUDE.md`, project in `./CLAUDE.md` (git), personal in `./CLAUDE.local.md` (gitignored). No duplication across tiers. | Anthropic — Best Practices |
+| R8 | **3-tier hierarchy used correctly.** Across files: global rules in `~/.claude/CLAUDE.md`, project in `./CLAUDE.md` (git), personal in `./CLAUDE.local.md` (gitignored). No duplication across tiers. Within a file: order by priority — hard non-negotiables at top, context-dependent rules middle, references/conveniences bottom. The instruction budget compresses lower-priority items first. | Anthropic — Best Practices; Fraser (Medium, May 2026) |
 | R9 | **Path-scoped rules in `.claude/rules/*.md`** when instructions only apply to certain files. | Anthropic — Advanced Patterns PDF |
-| R10 | **No content auto memory will capture.** Don't waste lines on stack details Claude figures out from `package.json`. | Community + Anthropic auto-memory docs |
+| R10 | **No content auto memory will capture, and no standard-tool documentation.** Don't waste lines on stack details Claude figures out from `package.json`, nor on standard tools Claude already knows (`git`, `gh`, `npm`, `pnpm`, `bun`, `cargo`, `python`, `node`, `tsc`, `eslint`, `prettier`, `make`). Document only custom wrappers or non-obvious project-specific invocations. | Community + Anthropic auto-memory docs; Fraser (Medium, May 2026) |
 
 ### Improve Mode Procedure
 
@@ -161,6 +163,7 @@ Suggest adding when missing:
 - `Create separate commits per logical change, not one giant commit`
 - `When unsure between two approaches, explain both and let me choose`
 - `NEVER commit .env files or secrets`
+- `NEVER run git push --force without explicit confirmation` *(if this must hold 100% of the time, a PreToolUse hook is the real fix — CLAUDE.md compliance ceilings around 80%)*
 
 ### What NOT to Include (anti-patterns)
 
@@ -234,6 +237,24 @@ For each drift finding: report the CLAUDE.md line, the actual code fact, and the
    - **Prescriptive** = tells Claude what to do ("when editing migrations, add both up and down")
    Report ratio. Descriptive lines are budget waste.
 
+#### Phase A-5.5: HOOK-CANDIDATE DETECTION
+
+CLAUDE.md instructions are advisory — community evidence puts compliance around 70–80%. Rules phrased as absolute commands fail this ceiling silently. Scan for deterministic-sounding rules and flag them for hook conversion.
+
+Patterns to flag:
+
+- Lines starting with `NEVER`, `Never`, `Always`, `MUST`, `Do not` followed by a verb
+- Rules naming destructive commands: `rm -rf`, `git push --force`, `git reset --hard`, `DROP TABLE`, `truncate`, `vercel --prod`, `gcloud ... delete`
+- Rules requiring 100% pre-commit gates: lint, typecheck, test must pass before commit
+
+For each match: report the line, classify as `hook-candidate`, and identify the right hook type:
+
+- Destructive command gates → `PreToolUse` hook returning exit code 2 to block
+- Pre-commit verification → `PreToolUse` on git commit or `PostToolUse` on file Edit/Write
+- Always-run-after-edit checks → `PostToolUse` hook
+
+Report wording: "This rule reads as deterministic but lives in advisory territory. Convert to a hook in `.claude/settings.json` for 100% enforcement; keep the CLAUDE.md line as documentation of the hook's intent, or remove it." Cite [Anthropic hooks docs](https://code.claude.com/docs/en/hooks) and the ~80% advisory ceiling.
+
 #### Phase A-6: REPORT
 
 Output grouped by severity, per project:
@@ -291,6 +312,7 @@ A run passes if **every** check is true. Otherwise rewrite the offending recomme
 - **Do not rotate secrets or scrub git history.** Audit reports leaks and guides; user drives the rotation + history scrub.
 - **Do not enforce a specific style across repos.** Each repo's existing voice is respected. Improve mode rewrites for STRUCTURE, not VOICE.
 - **Do not flag perfectly fine lines.** A line that fails the removability test must actually fail it — not "could maybe be tighter."
+- **Do not add a rule on first occurrence of a mistake.** Log it in MEMORY.md or a scratch list. Promote to CLAUDE.md only after the second occurrence. Improves signal-to-noise; cuts noise rules that bloat the file without preventing real mistakes. (Source: Redreamality, April 2026.)
 - **Do not hardcode user paths.** Use `$TARGET`, `$HOME`, `$1`. Never `/Users/<name>/...`.
 
 ## Sibling Skills
@@ -314,6 +336,9 @@ A run passes if **every** check is true. Otherwise rewrite the offending recomme
 - [HumanLayer — Writing a Good CLAUDE.md](https://www.humanlayer.dev/blog/writing-a-good-claude-md)
 - [zodchiii — The CLAUDE.md File That 10x'd My Output](https://x.com/zodchiii/status/2048683276194185640) (1.3M views)
 - [abhishekray07/claude-md-templates](https://github.com/abhishekray07/claude-md-templates)
+- [Augment Code — Karpathy skills on OpenClaw (April 2026)](https://www.augmentcode.com/blog/karpathy-skills-on-openclaw-agents-don-t-write-better-code-but-they-do-it-more-efficiently) — empirical counterevidence: Claude Code quality regressed −0.07 when Karpathy rules were layered on top of an already-aligned system prompt.
+- [Fraser — Claude.md Setup Tips That Will 10x Your Claude Code Workflow (Medium, May 2026)](https://medium.com/ai-systems-lab/claude-md-setup-tips-that-will-10x-your-claude-code-workflow-1d7d23793755) — Karpathy's 4 rules + 8 additions, including CLI-redundancy avoidance and in-file priority ordering.
+- [Redreamality — CLAUDE.md and AGENTS.md, In Depth (April 2026)](https://redreamality.com/blog/claude-md-agents-md-deep-dive/) — second-occurrence promotion rule; ~80% advisory ceiling synthesis.
 
 **Related discipline:**
 - Strunk & White — *The Elements of Style* — Rule 17 ("Omit needless words") is the upstream principle behind Anthropic's removability test

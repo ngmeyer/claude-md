@@ -51,7 +51,7 @@ Phase I-4: PRESENT  — summary + diff, await yes/partial/no
 Phase I-5: APPLY    — surgical Edit-tool changes, one at a time
 ```
 
-### Audit Mode (7 phases)
+### Audit Mode (7 phases + hook-candidate sub-phase)
 
 ```
 Phase A-1: DISCOVER          — find all CLAUDE.md files in ~/Projects + /Volumes/Lexar/Projects
@@ -59,6 +59,7 @@ Phase A-2: SECRET SCAN       — P0 leaks (ALWAYS first; interrupts other audit)
 Phase A-3: DRIFT DETECTION   — claimed facts vs real code
 Phase A-4: DUPLICATES        — heading + paragraph repetition
 Phase A-5: BUDGET + RATIO    — instruction count + descriptive vs prescriptive
+Phase A-5.5: HOOK CANDIDATES — flag deterministic-sounding rules for hook conversion
 Phase A-6: REPORT            — grouped by severity, per project
 Phase A-7: OFFER FIXES       — interactive; never auto-apply leak fixes
 ```
